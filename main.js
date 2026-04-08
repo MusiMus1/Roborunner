@@ -6,7 +6,7 @@ const config = {
     physics: {
         default: 'arcade',
         arcade: {
-            gravity: { y: 300 }
+            gravity: { y: 0 }
         }},
         
     scene: {
@@ -18,9 +18,17 @@ const config = {
 
 const game = new Phaser.Game(config);
 
+// Game Settings
 let isGameOver = false;
-let speed = 5.0;
-let speed_factor = 0.1;
+let speed = 7.0;
+let speedFactor = 0.1;
+
+// Player Settings
+const const_multiplier = 1.5;
+let gravity_multiplier;
+let gravity = 30.0;
+let isGrounded = false;
+let jumpForce = 700.0;
 
 function preload() {
     // Fruits
@@ -65,10 +73,11 @@ function preload() {
 
 function create() {
     // Player
-    this.player = this.physics.add.sprite(120, 380, 'player_000',);
+    this.player = this.physics.add.sprite(120, 80, 'player_000',);
     this.player.setCollideWorldBounds(true);
     this.player.setScale(0.6, 0.6);
     //// Player Animations
+    // Player Running
     this.anims.create({
         key: 'player_run',
         frames: [
@@ -81,8 +90,44 @@ function create() {
         ],
         frameRate: 10,
         repeat: -1
-    }
-    )
+
+    }) 
+    // Player Jumping
+    this.anims.create({
+        key: 'player_jump',
+        frames: [
+            {key : 'player_006'},
+            {key : 'player_007'},
+            {key : 'player_008'},
+        ],
+        frameRate: 12,
+        repeat: 0
+        
+    }) 
+    // Player Falling
+    this.anims.create({
+        key: 'player_fall',
+        frames: [
+            {key : 'player_009'},
+            {key : 'player_010'},
+            {key : 'player_011'},
+        ],
+        frameRate: 12,
+        repeat: 0
+
+    })
+    // Player Spinning
+    this.anims.create({
+        key: 'player_spin',
+        frames: [
+            {key : 'player_012'},
+            {key : 'player_013'},
+            {key : 'player_014'},
+        ],
+        frameRate: 16,
+        repeat: 1
+    })
+
     //// Player Physics
     this.player.setBodySize(95, 116);
     this.player.setOffset(69, 87);
@@ -94,12 +139,61 @@ function create() {
     this.physics.add.existing(this.ground, true)
 
     //Collision Handling
-    this.physics.add.collider(this.player, this.ground);
+    this.physics.add.collider(this.player, this.ground, (obj1, obj2) => {
+        isGrounded = true;
+    });
+
+    // Input Keys
+    this.spaceBar = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    this.spinKeys = this.input.keyboard.addKeys('UP,W');
 }
 
 function update() {
     if (isGameOver) return;
+    
+    const spinAction = [this.spinKeys.UP, this.spinKeys.W];
 
+    gravity_multiplier = (this.player.body.velocity.y > 0) ? const_multiplier : 1.0;
     this.ground.tilePositionX += speed;
-    this.player.play('player_run', true);
+
+    if (!isGrounded){
+        this.player.body.velocity.y += gravity * gravity_multiplier;
+        
+    } else {
+        if (Phaser.Input.Keyboard.JustDown(this.spaceBar)){
+            console.log('oi');
+            this.player.setVelocityY(-jumpForce);
+            isGrounded = false;
+        }
+    }
+
+    anim_manager(this.player);
+    if (spinAction.some(key => Phaser.Input.Keyboard.JustDown(key))){
+        this.player.play('player_spin').chain('player_fall')
+    }
+    
 }
+
+function anim_manager(obj){
+    if (is_playing(obj, 'player_spin')) return;
+
+    if (isGrounded){
+        obj.play('player_run', true);
+    } else {
+        if (obj.body.velocity.y >= 0 && !is_playing(obj, 'player_fall')){ 
+            obj.play('player_fall', true);
+        
+        } else if (obj.body.velocity.y < 0 && !is_playing(obj, 'player_jump')) {
+            obj.play('player_jump', true)
+        
+        }
+    }
+
+
+
+}
+
+function is_playing(obj, anim){
+    return obj.anims.currentAnim?.key === anim;
+}
+
