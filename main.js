@@ -1,6 +1,8 @@
 import Settings from './Global.js';
 import Enemy from './Enemy.js';
 import Spike from './Spike.js';
+import Block from './Block.js';
+import Fruit from './Fruit.js';
 
 // Game Settings
 let isGameOver = false;
@@ -17,8 +19,8 @@ let gravity_multiplier;
 let gravity = 30.0;
 let isGrounded = false;
 let jumpForce = 700.0;
-let normalBodySize = [95,116];
-let spinBodySize = [130, 145];
+let normalBodySize = 85;
+let spinBodySize = 85;
 
 export default class MainScene extends Phaser.Scene {
     constructor()
@@ -69,7 +71,7 @@ export default class MainScene extends Phaser.Scene {
 
     create() {
         // Player
-        this.player = this.physics.add.sprite(120, 80, 'player_000',);
+        this.player = this.physics.add.sprite(120, 380, 'player_000',).setDepth(5);
         this.player.setCollideWorldBounds(true);
         this.player.setScale(0.6, 0.6);
         //// Player Animations
@@ -160,12 +162,12 @@ export default class MainScene extends Phaser.Scene {
         this.player.setOffset(69, 87);
 
         // Ground
-        this.ground = this.add.tileSprite(400, 460, 800, 76.8, 'grass');
+        this.ground = this.add.tileSprite(400, 460, 800, 76.8, 'grass').setDepth(9);
         this.ground.tileScaleX = 0.6;
         this.ground.tileScaleY = 0.6;
         this.physics.add.existing(this.ground, true)
 
-        this.underground = this.add.tileSprite(400, 526 + 76.8, 800, 76.8 * 3, 'dirt');
+        this.underground = this.add.tileSprite(400, 526 + 76.8, 800, 76.8 * 3, 'dirt').setDepth(10);
         this.underground.tileScaleX = 0.6;
         this.underground.tileScaleY = 0.6;     
 
@@ -188,23 +190,45 @@ export default class MainScene extends Phaser.Scene {
             runChildUpdate: true
         })
 
+        this.blockGroup = this.physics.add.group({
+            classType: Block,
+            runChildUpdate: true
+        })
+
+        this.fruitGroup = this.physics.add.group({
+            classType: Fruit,
+            runChildUpdate: true
+        })
+
         this.physics.add.overlap(this.enemyGroup, this.player, (playerInstance, enemyInstance) => {
             if (this.is_playing(this.player, "player_spin")){
              enemyInstance.body.checkCollision.none = true;
-             //enemyInstance.setVisible(false);
              enemyInstance.anims.play('enemy_die')
              enemyInstance.setAngularVelocity(700);
              enemyInstance.setVelocity(800, -800);
-             this.player.setVelocityY(-jumpForce)
-             console.log("Hit enemy:", enemyInstance.texture.key);
-             console.log("Player visibility should be:", this.player.visible);
+             if (!isGrounded) this.player.setVelocityY(-jumpForce);
+             Settings.score += 2;
             } else {
                 Settings.gameOver = true;
             }
         }, null, this)
 
-        this.physics.add.overlap(this.spikeGroup, this.player, (playerInstance, enemyInstance) => {
-            Settings.gameOver = true
+        this.physics.add.overlap(this.spikeGroup, this.player, () => {
+            Settings.gameOver = true;
+        })
+
+        this.physics.add.overlap(this.blockGroup, this.player, (playerInstance, blockInstance) =>{
+            if (this.is_playing(this.player, "player_spin")){
+                blockInstance.body.checkCollision.none = true;
+                blockInstance.throwBlock();
+            } else{
+                Settings.gameOver = true;
+            }
+        })
+
+        this.physics.add.overlap(this.fruitGroup, this.player, (playerInstance, fruitInstance) =>{
+            Settings.score += 5;
+            fruitInstance.body.checkCollision.none = true;
         })
 
         this.addObstacle();
@@ -223,11 +247,11 @@ export default class MainScene extends Phaser.Scene {
         this.ground.tilePositionX += ((Settings.speed * delta) / 1000) / this.ground.tileScaleX;
         this.underground.tilePositionX += ((Settings.speed * delta) / 1000) / this.ground.tileScaleX;
         this.player.body.velocity.y += gravity * gravity_multiplier * !isGrounded;
-        this.player.body.width = (this.is_playing(this.player, "player_spin"))? spinBodySize[0] : normalBodySize[0];
+        this.player.body.width = (this.is_playing(this.player, "player_spin"))? spinBodySize : normalBodySize;
         
         if (this.actionJustDown(jumpAction) && isGrounded){
             console.log('oi');
-            this.player.setVelocityY(-jumpForce)
+            this.player.setVelocityY(-jumpForce);
             isGrounded = false;
         }
 
@@ -235,7 +259,7 @@ export default class MainScene extends Phaser.Scene {
 
         if (this.actionJustDown(spinAction)){
             this.player.setVelocityY(jumpForce * !isGrounded);
-            this.player.play('player_spin').chain('player_fall')
+            this.player.play('player_spin').chain('player_fall');
         }
         
     }
@@ -267,45 +291,66 @@ export default class MainScene extends Phaser.Scene {
 
     addObstacle(incrementSpeed = true){
         Settings.speed += speedFactor
-        let obstacleIdx = 0//this.getRandomIntInclusive(0, obstacleOptions.length - 1);
+        let obstacleIdx = this.getRandomRange(0, obstacleOptions.length - 1);
         let objectInstance;
 
         switch (obstacleIdx) {
             case 0:
-                const specialSpikes = Math.random() > 0.5;
-                const spacing = 128 * 0.6 / 2;  
-                let spikesNumber = (specialSpikes) ? 10 : this.getRandomIntInclusive(3, 6)
-                
+                const specialSpikes = Math.random() > 0.5;  
+                let spikesNumber = (specialSpikes) ? 10 : this.getRandomRange(3, 6)
+                const spikeSpacing = 128 * 0.6/2;
                 if (specialSpikes){
                     spikesNumber = 10;
-                    const enemyInstance = this.enemyGroup.get(805 + (spacing * ((spikesNumber - 1)/2)), 305, true);
+                    const enemyInstance = this.enemyGroup.get(800 + (spikeSpacing * spikesNumber)/2, 305, true, 0.0);
                     enemyInstance.anims.play('enemy_idle');
                     enemyInstance.setBodySize(60,50);
                     enemyInstance.setOffset(64, 66);
                     enemyInstance.setScale(0.6,0.6);
                 }
                 for(let i = 0; i < spikesNumber; i++){
-                    objectInstance = this.spikeGroup.get(800 + spacing * i,399, i === spikesNumber - 1);
+                    objectInstance = this.spikeGroup.get(800 + spikeSpacing * i,399, i === spikesNumber - 1, Math.random());
                     objectInstance.setBodySize(56, 70);
                     objectInstance.setOffset(48, 61);
                     objectInstance.setScale(0.6,0.6);
-                };
-
-
-
+                }
                 break;
+
+            case 1:
+                let blockFamily = []
+                const blockSpacing = 128 * 0.6
+                for(let i = 0; i < 3; i++){
+                    objectInstance = this.blockGroup.get(800 + 128 * 0.6, 389 - blockSpacing * i, i === 2, []);
+                    console.log(objectInstance.y);
+                    objectInstance.setScale(0.6,0.6);
+                    blockFamily.push(objectInstance);
+                }
+                for(let i = 0; i < 3; i++){
+                    blockFamily[i].blockFamily = blockFamily;
+                }
+                break;
+
             case 2:
-                objectInstance = this.enemyGroup.get(800,344);
+                objectInstance = this.enemyGroup.get(800 + 128 * 0.6,360, false, Math.random());
                 objectInstance.anims.play('enemy_idle');
                 objectInstance.setBodySize(60, 50);
                 objectInstance.setOffset(64, 66);
                 break;
         }
         objectInstance.setScale(0.6,0.6);
-        
+        objectInstance.setDepth(6);
     }
     
-    getRandomIntInclusive(min, max) {
+    spawnFruits(){
+        const fruitQuantity = this.getRandomRange(1, 4);
+        const fruitSpacing = 128 * 0.6;
+        for (let i = 0; i < fruitQuantity; i++){
+            const objectInstance = this.fruitGroup.get(800 + fruitSpacing * i, 360 + this.getRandomRange(-100, 0), i === fruitQuantity - 1);
+            objectInstance.setScale(0.65,0.65);
+            objectInstance.setBodySize(87, 96);
+        }
+    }
+
+    getRandomRange(min, max) {
         const minCeiled = Math.ceil(min);
         const maxFloored = Math.floor(max);
         return Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled);
