@@ -15,12 +15,16 @@ let obstacleOptions = [
 
 // Player Settings
 const const_multiplier = 1.5;
-let gravity_multiplier;
+let gravityMultiplier;
 let gravity = 30.0;
 let isGrounded = false;
 let jumpForce = 700.0;
 let normalBodySize = 85;
 let spinBodySize = 85;
+
+// Audio Settings
+let alreadyGameOver = false;
+let alreadyLanded = true;
 
 export default class MainScene extends Phaser.Scene {
     constructor()
@@ -66,6 +70,15 @@ export default class MainScene extends Phaser.Scene {
         this.load.image('enemy_004', 'assets/enemy/quadro0004.png');
         this.load.image('enemy_005', 'assets/enemy/quadro0005.png');
 
+        //Sounds
+        this.load.audio('theme', 'sounds/RunMusic.wav');
+        this.load.audio('player_land', 'sounds/PlayerLand.wav');
+        this.load.audio('player_spin', 'sounds/PlayerSpin.wav');
+        this.load.audio('player_jump', 'sounds/SFX_Jump_08.wav');
+        this.load.audio('enemy_hit', 'sounds/EnemyHit.wav');
+        this.load.audio('collect_fruit', 'sounds/CollectFruit.wav');
+        this.load.audio('block_break', 'sounds/BlockBreak.wav');
+        this.load.audio('game_over', 'sounds/GameOver.wav');
 
     }
 
@@ -200,36 +213,47 @@ export default class MainScene extends Phaser.Scene {
             runChildUpdate: true
         })
 
+        // Enemy Overlap
         this.physics.add.overlap(this.enemyGroup, this.player, (playerInstance, enemyInstance) => {
-            if (this.is_playing(this.player, "player_spin")){
-             enemyInstance.body.checkCollision.none = true;
-             enemyInstance.anims.play('enemy_die')
-             enemyInstance.setAngularVelocity(700);
-             enemyInstance.setVelocity(800, -800);
-             if (!isGrounded) this.player.setVelocityY(-jumpForce);
-             Settings.score += 2;
+            if (this.isPlaying(this.player, "player_spin")){
+                this.sound.play('enemy_hit');
+                enemyInstance.body.checkCollision.none = true;
+                enemyInstance.anims.play('enemy_die')
+                enemyInstance.setAngularVelocity(700);
+                enemyInstance.setVelocity(800, -800);
+                if (!isGrounded) this.player.setVelocityY(-jumpForce);
+                Settings.score += 2;
             } else {
-                Settings.gameOver = true;
+                this.kill();
             }
         }, null, this)
 
+        // Spike Overlap
         this.physics.add.overlap(this.spikeGroup, this.player, () => {
-            Settings.gameOver = true;
+            this.kill();
         })
 
+        // Block Overlap
         this.physics.add.overlap(this.blockGroup, this.player, (playerInstance, blockInstance) =>{
-            if (this.is_playing(this.player, "player_spin")){
+            if (this.isPlaying(this.player, "player_spin")){
                 blockInstance.body.checkCollision.none = true;
                 blockInstance.throwBlock();
             } else{
-                Settings.gameOver = true;
+                this.kill();
             }
         })
 
+        // Fruit Overlap
         this.physics.add.overlap(this.fruitGroup, this.player, (playerInstance, fruitInstance) =>{
+            this.sound.play('collect_fruit');
             Settings.score += 5;
             fruitInstance.body.checkCollision.none = true;
         })
+
+        // Music Settings
+        this.music = this.sound.add('theme');
+        this.music.play({loop: true, volume: 0.5});
+        this.gameOver = this.sound.add('game_over');
 
         this.addObstacle();
     }
@@ -243,37 +267,45 @@ export default class MainScene extends Phaser.Scene {
         const spinAction = [this.spinKeys.DOWN, this.spinKeys.S];
         const jumpAction = [this.jumpKeys.UP, this.jumpKeys.W, this.jumpKeys.SPACE];
         
-        gravity_multiplier = (this.player.body.velocity.y > 0) ? const_multiplier : 1.0;
+        gravityMultiplier = (this.player.body.velocity.y > 0) ? const_multiplier : 1.0;
         this.ground.tilePositionX += ((Settings.speed * delta) / 1000) / this.ground.tileScaleX;
         this.underground.tilePositionX += ((Settings.speed * delta) / 1000) / this.ground.tileScaleX;
-        this.player.body.velocity.y += gravity * gravity_multiplier * !isGrounded;
-        this.player.body.width = (this.is_playing(this.player, "player_spin"))? spinBodySize : normalBodySize;
+        this.player.body.velocity.y += gravity * gravityMultiplier * !isGrounded;
+        this.player.body.width = (this.isPlaying(this.player, "player_spin"))? spinBodySize : normalBodySize;
         
         if (this.actionJustDown(jumpAction) && isGrounded){
+            this.sound.play('player_jump');
             console.log('oi');
             this.player.setVelocityY(-jumpForce);
             isGrounded = false;
+            alreadyLanded = false;
         }
 
         this.anim_manager();
 
         if (this.actionJustDown(spinAction)){
+            this.sound.play('player_spin');
             this.player.setVelocityY(jumpForce * !isGrounded);
             this.player.play('player_spin').chain('player_fall');
         }
+
         
     }
 
     anim_manager(){
-        if (this.is_playing(this.player, 'player_spin')) return;
+        if (this.isPlaying(this.player, 'player_spin')) return;
 
         if (isGrounded){
+            if(!alreadyLanded){
+                this.sound.play('player_land');
+                alreadyLanded = true;
+            }
             this.player.play('player_run', true);
         } else {
-            if (this.player.body.velocity.y >= 0 && !this.is_playing(this.player, 'player_fall')){ 
+            if (this.player.body.velocity.y >= 0 && !this.isPlaying(this.player, 'player_fall')){ 
                 this.player.play('player_fall', true);
             
-            } else if (this.player.body.velocity.y < 0 && !this.is_playing(this.player, 'player_jump')) {
+            } else if (this.player.body.velocity.y < 0 && !this.isPlaying(this.player, 'player_jump')) {
                 this.player.play('player_jump', true)
             
             }
@@ -281,7 +313,7 @@ export default class MainScene extends Phaser.Scene {
 
     }
 
-    is_playing(obj, anim){
+    isPlaying(obj, anim){
         return obj.anims.getName() === anim;
     }
 
@@ -354,6 +386,15 @@ export default class MainScene extends Phaser.Scene {
         const minCeiled = Math.ceil(min);
         const maxFloored = Math.floor(max);
         return Math.floor(Math.random() * (maxFloored - minCeiled + 1) + minCeiled);
+    }
+
+    kill() {
+        if (!alreadyGameOver){
+            this.music.stop();
+            this.gameOver.play({loop: false, volume: 0.3});
+            alreadyGameOver = true;
+        }
+        Settings.gameOver = true;
     }
 }
 

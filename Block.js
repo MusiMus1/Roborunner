@@ -5,6 +5,7 @@ export default class Block extends Phaser.Physics.Arcade.Sprite {
         super(scene, x, y, 'stone')
         this.lastBlock = lastBlock;
         this.blockFamily = blockFamily;
+        this.alreadyBroke = false;
         scene.add.existing(this);
         scene.physics.add.existing(this);
     }   
@@ -21,6 +22,11 @@ export default class Block extends Phaser.Physics.Arcade.Sprite {
 
         if (!this.body.checkCollision.none){
             this.setVelocityX(-Settings.speed * !Settings.gameOver);
+        } else {
+            if(!this.alreadyBroke){
+                this.scene.sound.play('block_break');
+                this.alreadyBroke = true;
+            }
         }
 
         if(this.x < -(this.width * 0.6) || this.y > 600){
