@@ -3,6 +3,7 @@ import Enemy from './Enemy.js';
 import Spike from './Spike.js';
 import Block from './Block.js';
 import Fruit from './Fruit.js';
+import Background from './Background.js';
 
 // Game Settings
 let isGameOver = false;
@@ -69,6 +70,12 @@ export default class MainScene extends Phaser.Scene {
         this.load.image('enemy_003', 'assets/enemy/quadro0003.png');
         this.load.image('enemy_004', 'assets/enemy/quadro0004.png');
         this.load.image('enemy_005', 'assets/enemy/quadro0005.png');
+
+        // Backgronds
+        this.load.image('sky', 'assets/sky_bg.png');
+        this.load.image('clouds', 'assets/clouds_bg.png');
+        this.load.image('clouds_2', 'assets/clouds_bg_2.png');
+        this.load.image('mountains', 'assets/mountains_bg.png')
 
         //Sounds
         this.load.audio('theme', 'sounds/RunMusic.wav');
@@ -255,6 +262,11 @@ export default class MainScene extends Phaser.Scene {
         this.music.play({loop: true, volume: 0.5});
         this.gameOver = this.sound.add('game_over');
 
+        // Background Settings
+        this.sky = this.add.existing(new Background(this,0,0,0,0,0,'sky',0));
+        this.mountains = this.add.existing(new Background(this,0,0,0,0,Settings.speed/10,'mountains',3));
+        this.clouds = this.add.existing(new Background(this,0,0,0,0,Settings.speed/30,'clouds',2));
+        this.farClouds = this.add.existing(new Background(this,0,0,0,0,Settings.speed/60,'clouds_2',1));
         this.addObstacle();
     }
 
@@ -289,6 +301,9 @@ export default class MainScene extends Phaser.Scene {
             this.player.play('player_spin').chain('player_fall');
         }
 
+        this.mountains.update(time, delta);
+        this.clouds.update(time, delta);
+        this.farClouds.update(time, delta);
         
     }
 
@@ -338,12 +353,14 @@ export default class MainScene extends Phaser.Scene {
                     enemyInstance.setBodySize(60,50);
                     enemyInstance.setOffset(64, 66);
                     enemyInstance.setScale(0.6,0.6);
+                    enemyInstance.setDepth(6);
                 }
                 for(let i = 0; i < spikesNumber; i++){
                     objectInstance = this.spikeGroup.get(800 + spikeSpacing * i,399, i === spikesNumber - 1, Math.random());
                     objectInstance.setBodySize(56, 70);
                     objectInstance.setOffset(48, 61);
                     objectInstance.setScale(0.6,0.6);
+                    objectInstance.setDepth(6);
                 }
                 break;
 
@@ -355,6 +372,7 @@ export default class MainScene extends Phaser.Scene {
                     console.log(objectInstance.y);
                     objectInstance.setScale(0.6,0.6);
                     blockFamily.push(objectInstance);
+                    objectInstance.setDepth(6);
                 }
                 for(let i = 0; i < 3; i++){
                     blockFamily[i].blockFamily = blockFamily;

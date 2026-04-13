@@ -8,6 +8,7 @@ export default class Fruit extends Phaser.Physics.Arcade.Sprite {
         super(scene, x, y, choosenFruit);
         scene.add.existing(this);
         scene.physics.add.existing(this);
+        this.setDepth(6)
     }   
     update(time, delta) {
         if (!this.body.checkCollision.none){
